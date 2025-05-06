@@ -18,7 +18,7 @@ from tools.i18n.i18n import I18nAuto
 
 i18n = I18nAuto(language="zh_CN")
 
-model_dir = "/data/jcxy/hhy/models/IndexTeam/Index-TTS"
+model_dir = "/path/to/IndexTeam/Index-TTS"
 cfg_path = os.path.join(model_dir, "config.yaml")
 tts = IndexTTS(model_dir=model_dir, cfg_path=cfg_path)
 

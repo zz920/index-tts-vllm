@@ -1,4 +1,4 @@
-MODEL_DIR="/data/jcxy/llm_model/IndexTeam/Index-TTS"
+MODEL_DIR="/path/to/IndexTeam/Index-TTS"
 VLLM_DIR="$MODEL_DIR/vllm"
 
 mkdir -p "$VLLM_DIR"

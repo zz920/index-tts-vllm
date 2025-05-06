@@ -2,8 +2,13 @@ import os
 from omegaconf import OmegaConf
 from indextts.gpt.model import UnifiedVoice
 from indextts.utils.checkpoint import load_checkpoint
+import argparse
 
-model_dir = "/data/jcxy/hhy/models/IndexTeam/Index-TTS"
+parser = argparse.ArgumentParser()
+parser.add_argument("--model_dir", type=str, default="")
+args = parser.parse_args()
+
+model_dir = args.model_dir
 cfg_path = os.path.join(model_dir, "config.yaml")
 vllm_save_dir = os.path.join(model_dir, "vllm")
 

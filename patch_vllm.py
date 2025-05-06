@@ -1,7 +1,7 @@
 import time
 from typing import List, Optional, Tuple, Union
 
-# 注册自定义模型类
+# 在 vllm 中注册自定义的 GPT2TTSModel
 from vllm import ModelRegistry
 from indextts.gpt.index_tts_gpt2 import GPT2TTSModel
 ModelRegistry.register_model("GPT2InferenceModel", GPT2TTSModel)
@@ -9,7 +9,7 @@ print("✅ Registry GPT2TTSModel to vllm")
 
 
 
-# 解除 repetition_penalty 的限制
+# 解除 vllm 对 repetition_penalty 的限制
 from vllm.sampling_params import SamplingParams
 original_verify_args = SamplingParams._verify_args
 
@@ -44,7 +44,7 @@ print("⚠️  SamplingParams._verify_args Patched")
 # print("⚠️  Scheduler.schedule Patched")
 
 
-# 将 position_ids 减去 prefill 的长度再加 2
+# 将 position_ids 减去 prefill 的长度再加 2，以便计算每一步 decode 的 position embed
 from vllm.worker.model_runner import ModelInputForGPUBuilder
 from vllm.sequence import SequenceGroupMetadata
 from vllm.model_executor.layers.rotary_embedding import MRotaryEmbedding
@@ -150,7 +150,7 @@ from vllm.engine.llm_engine import SchedulerOutputState
 # RequestOutput.__init__ = new_init
 # print("⚠️  RequestOutput.__init__ Patched")
 
-
+# prefill 阶段走这条路
 async def patched_step_async(
         self, virtual_engine: int
     ) -> List[Union[RequestOutput, PoolingRequestOutput]]:
