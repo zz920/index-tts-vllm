@@ -31,8 +31,8 @@ os.makedirs("outputs/tasks",exist_ok=True)
 
 async def gen_single(prompt, text, infer_mode, progress=gr.Progress()):
     output_path = None
-    if not output_path:
-        output_path = os.path.join("outputs", f"spk_{int(time.time())}.wav")
+    # if not output_path:
+    #     output_path = os.path.join("outputs", f"spk_{int(time.time())}.wav")
     # set gradio progress
     tts.gr_progress = progress
     output = await tts.infer(prompt, text, output_path, verbose=True)
