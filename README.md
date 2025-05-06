@@ -1,6 +1,6 @@
 <div align="center">
 
-# IndexTTS-VLLM
+# IndexTTS-vLLM
 </div>
 
 ## 项目简介
