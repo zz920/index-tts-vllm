@@ -20,10 +20,13 @@ from tools.i18n.i18n import I18nAuto
 
 i18n = I18nAuto(language="zh_CN")
 MODE = 'local'
-tts = IndexTTS(model_dir="/data/jcxy/hhy/models/IndexTeam/Index-TTS",cfg_path="/data/jcxy/hhy/models/IndexTeam/Index-TTS/config.yaml")
+
+model_dir = "/data/jcxy/hhy/models/IndexTeam/Index-TTS"
+cfg_path = os.path.join(model_dir, "config.yaml")
+tts = IndexTTS(model_dir=model_dir, cfg_path=cfg_path)
 
 os.makedirs("outputs/tasks",exist_ok=True)
-os.makedirs("prompts",exist_ok=True)
+# os.makedirs("prompts",exist_ok=True)
 
 
 async def gen_single(prompt, text, infer_mode, progress=gr.Progress()):

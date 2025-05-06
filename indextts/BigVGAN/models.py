@@ -200,6 +200,7 @@ class BigVGAN(torch.nn.Module):
 
     def forward(self, x, mel_ref, lens=None):
         speaker_embedding = self.speaker_encoder(mel_ref, lens)
+        print("speaker_embedding1", speaker_embedding.shape)
         n_batch = x.size(0)
         contrastive_loss = None
         if n_batch * 2 == speaker_embedding.size(0):
@@ -208,6 +209,7 @@ class BigVGAN(torch.nn.Module):
 
             speaker_embedding = speaker_embedding[:n_batch, :, :]
         speaker_embedding = speaker_embedding.transpose(1, 2)
+        print("speaker_embedding2", speaker_embedding.shape)
 
         # upsample feat
         if self.feat_upsample:
