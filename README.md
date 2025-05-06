@@ -1,3 +1,8 @@
+<div align="center">
+
+# IndexTTS-VLLM
+</div>
+
 ## 项目简介
 该项目在 [index-tts](https://github.com/index-tts/index-tts) 的基础上使用 vllm 库重新实现了 gpt 模型的推理，加速了 index-tts 的推理过程。
 
@@ -7,7 +12,7 @@
 - 并发量：gpu_memory_utilization设置为0.5（约12GB显存）的情况下，vllm 显示 `Maximum concurrency for 608 tokens per request: 237.18x`，两百多并发，man！当然考虑 TTFT 以及其他推理成本（bigvgan 等）保守估计 20 左右的并发应该毫无压力（没实测过，手动狗头）
 
 ## 新特性
-- 支持多参考音频混合：可以传入多个参考音频，TTS 输出的声线为多个参考音频的声线混合版本（实验性操作，感觉效果不太稳定）
+- 支持多参考音频混合：可以传入多个参考音频，TTS 输出的声线为多个参考音频的声线混合版本（实验性操作，感觉效果不太稳定 0.0）
 
 ## 使用步骤
 
