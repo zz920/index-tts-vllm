@@ -12,7 +12,7 @@ gpt = UnifiedVoice(**cfg.gpt)
 gpt_path = os.path.join(model_dir, cfg.gpt_checkpoint)
 load_checkpoint(gpt, gpt_path)
 gpt = gpt.to("cuda")
-gpt.eval().half()
+gpt.eval()  # .half()
 gpt.post_init_gpt2_config()
 print(">> GPT weights restored from:", gpt_path)
 

@@ -182,7 +182,7 @@ class UnifiedVoice(nn.Module):
         self.mel_solo_embedding = 0
         self.text_solo_embedding = 0
 
-        self.final_norm = nn.LayerNorm(model_dim)
+        self.final_norm = nn.LayerNorm(model_dim)  # , dtype=torch.float16
         self.text_head = nn.Linear(model_dim, self.number_text_tokens * types + 1)
         self.mel_head = nn.Linear(model_dim, self.number_mel_codes)
 
@@ -230,7 +230,6 @@ class UnifiedVoice(nn.Module):
         text_emb = self.text_embedding(text_inputs) + self.text_pos_embedding(text_inputs)
 
         # speech_conditioning_latent = self.get_conditioning(speech_conditioning_latent, cond_mel_lengths)
-        # conds = speech_conditioning_latent
         emb = torch.cat([speech_conditioning_latent, text_emb], dim=1)
         trunc_index = emb.shape[1] + 1
 
@@ -247,6 +246,5 @@ class UnifiedVoice(nn.Module):
             latent.append(output.hidden_states.clone())
         # codes = gen.sequences[:, 1:]
         latent = torch.cat(latent[:-2], dim=0).unsqueeze(0)
-        # print("latent", latent.shape, latent)
-        latent = self.final_norm(latent)
+        latent = self.final_norm(latent.float())
         return latent  # [:, trunc_index:]

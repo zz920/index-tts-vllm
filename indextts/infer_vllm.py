@@ -65,10 +65,11 @@ class IndexTTS:
         self.gpt_path = os.path.join(self.model_dir, self.cfg.gpt_checkpoint)
         load_checkpoint(self.gpt, self.gpt_path)
         self.gpt = self.gpt.to(self.device)
-        if self.is_fp16:
-            self.gpt.eval().half()
-        else:
-            self.gpt.eval()
+        # if self.is_fp16:
+        #     self.gpt.eval().half()
+        # else:
+        #     self.gpt.eval()
+        self.gpt.eval()
         print(">> GPT weights restored from:", self.gpt_path)
 
         if self.use_cuda_kernel:
@@ -91,7 +92,7 @@ class IndexTTS:
         self.bigvgan.remove_weight_norm()
         self.bigvgan.eval()
         print(">> bigvgan weights restored from:", self.bigvgan_path)
-        self.bpe_path = os.path.join(self.model_dir, self.cfg.dataset["bpe_model"])
+        self.bpe_path = os.path.join(self.model_dir, "bpe.model")  # self.cfg.dataset["bpe_model"]
         self.normalizer = TextNormalizer()
         self.normalizer.load()
         print(">> TextNormalizer loaded")
@@ -177,7 +178,7 @@ class IndexTTS:
         speech_conditioning_latent = []
         for cond_mel in auto_conditioning:
             speech_conditioning_latent_ = self.gpt.get_conditioning(
-                cond_mel.half(),
+                cond_mel,  # .half()
                 torch.tensor([cond_mel.shape[-1]], device=self.device)
             )
             speech_conditioning_latent.append(speech_conditioning_latent_)
@@ -193,12 +194,12 @@ class IndexTTS:
 
             m_start_time = time.perf_counter()
             with torch.no_grad():
-                with torch.amp.autocast(text_tokens.device.type, enabled=self.dtype is not None, dtype=self.dtype):
-                    latent = await self.gpt.inference_speech(
-                        speech_conditioning_latent,
-                        text_tokens,
-                        # cond_mel_lengths=torch.tensor([auto_conditioning.shape[-1]], device=text_tokens.device)
-                    )
+                # with torch.amp.autocast(text_tokens.device.type, enabled=self.dtype is not None, dtype=self.dtype):
+                latent = await self.gpt.inference_speech(
+                    speech_conditioning_latent,
+                    text_tokens,
+                    # cond_mel_lengths=torch.tensor([auto_conditioning.shape[-1]], device=text_tokens.device)
+                )
                 gpt_gen_time += time.perf_counter() - m_start_time
                 
                 # code_lens = torch.tensor([codes.shape[-1]], device=codes.device, dtype=codes.dtype)

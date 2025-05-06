@@ -1,5 +1,4 @@
 import os
-import shutil
 import sys
 import threading
 import time
@@ -13,31 +12,26 @@ sys.path.append(current_dir)
 sys.path.append(os.path.join(current_dir, "indextts"))
 
 import gradio as gr
-from indextts.utils.webui_utils import next_page, prev_page
 
 from indextts.infer_vllm import IndexTTS
 from tools.i18n.i18n import I18nAuto
 
 i18n = I18nAuto(language="zh_CN")
-MODE = 'local'
 
 model_dir = "/data/jcxy/hhy/models/IndexTeam/Index-TTS"
 cfg_path = os.path.join(model_dir, "config.yaml")
 tts = IndexTTS(model_dir=model_dir, cfg_path=cfg_path)
 
 
-async def gen_single(prompts, text, infer_mode, progress=gr.Progress()):
+async def gen_single(prompts, text, progress=gr.Progress()):
     output_path = None
     tts.gr_progress = progress
-    # 处理多个参考音频路径
+    
     if isinstance(prompts, list):
-        # 多个音频文件的情况
         prompt_paths = [prompt.name for prompt in prompts if prompt is not None]
     else:
-        # 单个音频文件的情况
         prompt_paths = [prompts.name] if prompts is not None else []
     
-    # 将多个参考音频路径传递给模型
     output = await tts.infer(prompt_paths, text, output_path, verbose=True)
     return gr.update(value=output, visible=True)
 
@@ -63,11 +57,6 @@ with gr.Blocks() as demo:
             )
             with gr.Column():
                 input_text_single = gr.TextArea(label="请输入目标文本", key="input_text_single")
-                infer_mode = gr.Radio(
-                    choices=["普通推理", "批次推理"],
-                    label="选择推理模式（批次推理：更适合长句，性能翻倍）",
-                    value="普通推理"
-                )
                 gen_button = gr.Button("生成语音", key="gen_button", interactive=True)
             output_audio = gr.Audio(label="生成结果", visible=True, key="output_audio")
 
@@ -79,7 +68,7 @@ with gr.Blocks() as demo:
 
     gen_button.click(
         gen_single,
-        inputs=[prompt_audio, input_text_single, infer_mode],
+        inputs=[prompt_audio, input_text_single],
         outputs=[output_audio]
     )
 
