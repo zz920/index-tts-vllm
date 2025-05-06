@@ -1,5 +1,5 @@
 ## 项目简介
-XXX
+IndexTTS-vllm
 
 ### RTF
 XXX
@@ -39,3 +39,7 @@ pip install -r requirements.txt
 
 ### 5. 模型权重转换
 此操作将官方模型权重转换为 transformers 库兼容的版本，方便后续 vllm 库加载模型权重
+
+
+## 推理
+第一次可能会久一些，因为要 bigvgan cuda 编译

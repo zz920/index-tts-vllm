@@ -98,61 +98,42 @@ class IndexTTS:
         print(">> TextNormalizer loaded")
         self.tokenizer = TextTokenizer(self.bpe_path, self.normalizer)
         print(">> bpe model loaded from:", self.bpe_path)
-        # 进度引用显示（可选）
-        self.gr_progress = None
-
-    def remove_long_silence(self, codes: torch.Tensor, latent: torch.Tensor, silent_token=52, max_consecutive=30):
-        code_lens = []
-        codes_list = []
-        device = codes.device
-        dtype = codes.dtype
-        isfix = False
-        for i in range(0, codes.shape[0]):
-            code = codes[i]
-            if self.cfg.gpt.stop_mel_token not in code:
-                code_lens.append(len(code))
-                len_ = len(code)
+    
+    def remove_long_silence(self, codes: list, latent: torch.Tensor, max_consecutive, silent_token=52):
+        assert latent.dim() == 3 and latent.size(0) == 1, "Latent should be (1, seq_len, dim)"
+        seq_len, dim = latent.size(1), latent.size(2)
+        print("latent", latent.shape)
+        
+        if self.stop_mel_token in codes:
+            try:
+                stop_idx = codes.index(self.stop_mel_token)
+                valid_len = max(stop_idx - 1, 0)  # 保留至停止标记前一位
+            except ValueError:
+                valid_len = len(codes)
+        else:
+            valid_len = len(codes)
+        
+        valid_codes = codes[:min(valid_len, len(codes))]
+        valid_latent = latent[0, :seq_len]  # 保持维度兼容性
+        
+        keep_indices = []
+        silence_counter = 0
+        
+        for idx, token in enumerate(valid_codes):
+            if token == silent_token:
+                silence_counter += 1
             else:
-                # len_ = code.cpu().tolist().index(8193)+1
-                len_ = (code == self.stop_mel_token).nonzero(as_tuple=False)[0] + 1
-                len_ = len_ - 2
+                silence_counter = 0
+            
+            if silence_counter <= max_consecutive:
+                keep_indices.append(idx)
+        
+        filtered_latent = valid_latent[keep_indices].unsqueeze(0)  # [1, new_seq, dim]
+        print("filtered_latent", filtered_latent.shape)
+        return filtered_latent
 
-            count = torch.sum(code == silent_token).item()
-            if count > max_consecutive:
-                code = code.cpu().tolist()
-                ncode = []
-                n = 0
-                for k in range(0, len_):
-                    if code[k] != silent_token:
-                        ncode.append(code[k])
-                        n = 0
-                    elif code[k] == silent_token and n < 10:
-                        ncode.append(code[k])
-                        n += 1
-                    # if (k == 0 and code[k] == 52) or (code[k] == 52 and code[k-1] == 52):
-                    #    n += 1
-                len_ = len(ncode)
-                ncode = torch.LongTensor(ncode)
-                codes_list.append(ncode.to(device, dtype=dtype))
-                isfix = True
-                # codes[i] = self.stop_mel_token
-                # codes[i, 0:len_] = ncode
-            else:
-                codes_list.append(codes[i])
-            code_lens.append(len_)
-
-        codes = pad_sequence(codes_list, batch_first=True) if isfix else codes[:, :-2]
-        code_lens = torch.LongTensor(code_lens).to(device, dtype=dtype)
-        return codes, code_lens
-
-    def _set_gr_progress(self, value, desc):
-        if self.gr_progress is not None:
-            self.gr_progress(value, desc=desc)
-
-    # 原始推理模式
     async def infer(self, audio_prompt: List[str], text, output_path=None, verbose=False):
         print(">> start inference...")
-        self._set_gr_progress(0, "start inference...")
         start_time = time.perf_counter()
 
         auto_conditioning = []
@@ -189,24 +170,19 @@ class IndexTTS:
             text_tokens = self.tokenizer.convert_tokens_to_ids(sent)
             text_tokens = torch.tensor(text_tokens, dtype=torch.int32, device=self.device).unsqueeze(0)
 
-            # text_len = torch.IntTensor([text_tokens.size(1)], device=text_tokens.device)
-            # print(text_len)
-
             m_start_time = time.perf_counter()
             with torch.no_grad():
                 # with torch.amp.autocast(text_tokens.device.type, enabled=self.dtype is not None, dtype=self.dtype):
-                latent = await self.gpt.inference_speech(
+                codes, latent = await self.gpt.inference_speech(
                     speech_conditioning_latent,
                     text_tokens,
                     # cond_mel_lengths=torch.tensor([auto_conditioning.shape[-1]], device=text_tokens.device)
                 )
                 gpt_gen_time += time.perf_counter() - m_start_time
-                
-                # code_lens = torch.tensor([codes.shape[-1]], device=codes.device, dtype=codes.dtype)
 
                 # # remove ultra-long silence if exits
                 # # temporarily fix the long silence bug.
-                # codes, code_lens = self.remove_long_silence(codes, latent, silent_token=52, max_consecutive=30)
+                latent = self.remove_long_silence(codes, latent, max_consecutive=15, silent_token=52)
 
                 m_start_time = time.perf_counter()
                 wav, _ = self.bigvgan(latent, [ap_.transpose(1, 2) for ap_ in auto_conditioning])
