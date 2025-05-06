@@ -97,9 +97,6 @@ class IndexTTS:
         print(">> TextNormalizer loaded")
         self.tokenizer = TextTokenizer(self.bpe_path, self.normalizer)
         print(">> bpe model loaded from:", self.bpe_path)
-        # 缓存参考音频mel：
-        self.cache_audio_prompt = None
-        self.cache_cond_mel = None
         # 进度引用显示（可选）
         self.gr_progress = None
 
@@ -152,29 +149,22 @@ class IndexTTS:
             self.gr_progress(value, desc=desc)
 
     # 原始推理模式
-    async def infer(self, audio_prompt, text, output_path=None, verbose=False):
+    async def infer(self, audio_prompt: List[str], text, output_path=None, verbose=False):
         print(">> start inference...")
         self._set_gr_progress(0, "start inference...")
         start_time = time.perf_counter()
 
-        # 如果参考音频改变了，才需要重新生成 cond_mel, 提升速度
-        if self.cache_cond_mel is None or self.cache_audio_prompt != audio_prompt:
-            audio, sr = torchaudio.load(audio_prompt)
+        auto_conditioning = []
+        for ap_ in audio_prompt:
+            audio, sr = torchaudio.load(ap_)
             audio = torch.mean(audio, dim=0, keepdim=True)
             if audio.shape[0] > 1:
                 audio = audio[0].unsqueeze(0)
             audio = torchaudio.transforms.Resample(sr, 24000)(audio)
             cond_mel = MelSpectrogramFeatures()(audio).to(self.device)
-            cond_mel_frame = cond_mel.shape[-1]
+            # cond_mel_frame = cond_mel.shape[-1]
+            auto_conditioning.append(cond_mel)
 
-            self.cache_audio_prompt = audio_prompt
-            self.cache_cond_mel = cond_mel
-        else:
-            cond_mel = self.cache_cond_mel
-            cond_mel_frame = cond_mel.shape[-1]
-            pass
-
-        auto_conditioning = cond_mel
         text_tokens_list = self.tokenizer.tokenize(text)
         sentences = self.tokenizer.split_sentences(text_tokens_list)
         sampling_rate = 24000
@@ -184,10 +174,15 @@ class IndexTTS:
         gpt_gen_time = 0
         bigvgan_time = 0
 
-        speech_conditioning_latent = self.gpt.get_conditioning(
-            auto_conditioning.half(),
-            torch.tensor([auto_conditioning.shape[-1]], device=self.device)
-        )
+        speech_conditioning_latent = []
+        for cond_mel in auto_conditioning:
+            speech_conditioning_latent_ = self.gpt.get_conditioning(
+                cond_mel.half(),
+                torch.tensor([cond_mel.shape[-1]], device=self.device)
+            )
+            speech_conditioning_latent.append(speech_conditioning_latent_)
+        speech_conditioning_latent = torch.stack(speech_conditioning_latent).sum(dim=0)
+        speech_conditioning_latent = speech_conditioning_latent / len(auto_conditioning)
 
         for sent in sentences:
             text_tokens = self.tokenizer.convert_tokens_to_ids(sent)
@@ -213,7 +208,7 @@ class IndexTTS:
                 # codes, code_lens = self.remove_long_silence(codes, latent, silent_token=52, max_consecutive=30)
 
                 m_start_time = time.perf_counter()
-                wav, _ = self.bigvgan(latent, auto_conditioning.transpose(1, 2))
+                wav, _ = self.bigvgan(latent, [ap_.transpose(1, 2) for ap_ in auto_conditioning])
                 bigvgan_time += time.perf_counter() - m_start_time
                 wav = wav.squeeze(1)
 
@@ -225,7 +220,7 @@ class IndexTTS:
 
         wav = torch.cat(wavs, dim=1)
         wav_length = wav.shape[-1] / sampling_rate
-        print(f">> Reference audio length: {cond_mel_frame * 256 / sampling_rate:.2f} seconds")
+        # print(f">> Reference audio length: {cond_mel_frame * 256 / sampling_rate:.2f} seconds")
         print(f">> gpt_gen_time: {gpt_gen_time:.2f} seconds")
         print(f">> bigvgan_time: {bigvgan_time:.2f} seconds")
         print(f">> Total inference time: {end_time - start_time:.2f} seconds")

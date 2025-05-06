@@ -25,23 +25,24 @@ model_dir = "/data/jcxy/hhy/models/IndexTeam/Index-TTS"
 cfg_path = os.path.join(model_dir, "config.yaml")
 tts = IndexTTS(model_dir=model_dir, cfg_path=cfg_path)
 
-os.makedirs("outputs/tasks",exist_ok=True)
-# os.makedirs("prompts",exist_ok=True)
 
-
-async def gen_single(prompt, text, infer_mode, progress=gr.Progress()):
+async def gen_single(prompts, text, infer_mode, progress=gr.Progress()):
     output_path = None
-    # if not output_path:
-    #     output_path = os.path.join("outputs", f"spk_{int(time.time())}.wav")
-    # set gradio progress
     tts.gr_progress = progress
-    output = await tts.infer(prompt, text, output_path, verbose=True)
-    return gr.update(value=output,visible=True)
+    # 处理多个参考音频路径
+    if isinstance(prompts, list):
+        # 多个音频文件的情况
+        prompt_paths = [prompt.name for prompt in prompts if prompt is not None]
+    else:
+        # 单个音频文件的情况
+        prompt_paths = [prompts.name] if prompts is not None else []
+    
+    # 将多个参考音频路径传递给模型
+    output = await tts.infer(prompt_paths, text, output_path, verbose=True)
+    return gr.update(value=output, visible=True)
 
 def update_prompt_audio():
-    update_button = gr.update(interactive=True)
-    return update_button
-
+    return gr.update(interactive=True)
 
 with gr.Blocks() as demo:
     mutex = threading.Lock()
@@ -54,29 +55,34 @@ with gr.Blocks() as demo:
     ''')
     with gr.Tab("音频生成"):
         with gr.Row():
-            os.makedirs("prompts",exist_ok=True)
-            prompt_audio = gr.Audio(label="请上传参考音频",key="prompt_audio",
-                                    sources=["upload","microphone"],type="filepath")
-            prompt_list = os.listdir("prompts")
-            default = ''
-            if prompt_list:
-                default = prompt_list[0]
+            # 使用 gr.File 替代 gr.Audio 来支持多文件上传
+            prompt_audio = gr.File(
+                label="请上传参考音频（可上传多个）",
+                file_count="multiple",
+                file_types=["audio"]
+            )
             with gr.Column():
-                input_text_single = gr.TextArea(label="请输入目标文本",key="input_text_single")
-                infer_mode = gr.Radio(choices=["普通推理", "批次推理"], label="选择推理模式（批次推理：更适合长句，性能翻倍）",value="普通推理")
-                gen_button = gr.Button("生成语音",key="gen_button",interactive=True)
-            output_audio = gr.Audio(label="生成结果", visible=True,key="output_audio")
+                input_text_single = gr.TextArea(label="请输入目标文本", key="input_text_single")
+                infer_mode = gr.Radio(
+                    choices=["普通推理", "批次推理"],
+                    label="选择推理模式（批次推理：更适合长句，性能翻倍）",
+                    value="普通推理"
+                )
+                gen_button = gr.Button("生成语音", key="gen_button", interactive=True)
+            output_audio = gr.Audio(label="生成结果", visible=True, key="output_audio")
 
-    prompt_audio.upload(update_prompt_audio,
-                         inputs=[],
-                         outputs=[gen_button])
+    prompt_audio.upload(
+        update_prompt_audio,
+        inputs=[],
+        outputs=[gen_button]
+    )
 
-    gen_button.click(gen_single,
-                     inputs=[prompt_audio, input_text_single, infer_mode],
-                     outputs=[output_audio])
-
+    gen_button.click(
+        gen_single,
+        inputs=[prompt_audio, input_text_single, infer_mode],
+        outputs=[output_audio]
+    )
 
 if __name__ == "__main__":
     demo.queue(20)
-    # demo.launch(server_name="127.0.0.1")
     demo.launch(server_name="0.0.0.0")
