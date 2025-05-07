@@ -425,19 +425,15 @@ class GPT2TTSModel(nn.Module, SupportsPP, SupportsMultiModal):
             # mel_len = torch.tensor([emb.shape[1] for emb in audio_embeds], dtype=positions.dtype, device=positions.device)
             audio_embeds = torch.cat(audio_embeds, dim=1).squeeze(0).to(dtype=self.audio_emb.weight.dtype)
 
-        if audio_embeds is not None and audio_embeds.shape[0] == input_ids.shape[0]:  # prefill
+        if audio_embeds is not None:  # and audio_embeds.shape[0] == input_ids.shape[0]   prefill
             inputs_embeds = audio_embeds
         else:  # decode
             inputs_embeds = self.audio_emb(input_ids)
-            # if audio_embeds is not None:
             # print("positions", positions)
-            if torch.cuda.is_current_stream_capturing() or not (positions == 0).any():
+            if torch.cuda.is_current_stream_capturing() or positions[0] > 0:
                 pos_emb = [self.text_pos_embedding.get_fixed_embedding(ind, inputs_embeds.device)
                             for ind in positions]  #  - mel_len + 2
                 pos_emb = torch.cat(pos_emb, dim=0)
-                # inputs_embeds = inputs_embeds + self.text_pos_embedding.get_fixed_embedding(
-                #     positions - mel_len + 2, inputs_embeds.device
-                # )
                 inputs_embeds = inputs_embeds + pos_emb
         # print("inputs_embeds", inputs_embeds.shape)
         hidden_states = self.transformer(input_ids, positions, kv_caches,
