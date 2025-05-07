@@ -26,7 +26,7 @@ cd index-tts-vllm
 ### 2. 创建并激活 conda 环境
 ```bash
 conda create -n index-tts-vllm python=3.12
-conda activate index-tts-vllm python
+conda activate index-tts-vllm
 ```
 
 
