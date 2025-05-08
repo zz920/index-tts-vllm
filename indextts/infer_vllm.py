@@ -98,39 +98,41 @@ class IndexTTS:
         print(">> TextNormalizer loaded")
         self.tokenizer = TextTokenizer(self.bpe_path, self.normalizer)
         print(">> bpe model loaded from:", self.bpe_path)
+
+        self.speaker_dict = {}
     
-    def remove_long_silence(self, codes: list, latent: torch.Tensor, max_consecutive, silent_token=52):
-        assert latent.dim() == 3 and latent.size(0) == 1, "Latent should be (1, seq_len, dim)"
-        seq_len, dim = latent.size(1), latent.size(2)
-        print("latent", latent.shape)
+    # def remove_long_silence(self, codes: list, latent: torch.Tensor, max_consecutive, silent_token=52):
+    #     assert latent.dim() == 3 and latent.size(0) == 1, "Latent should be (1, seq_len, dim)"
+    #     seq_len, dim = latent.size(1), latent.size(2)
+    #     # print("latent", latent.shape)
         
-        if self.stop_mel_token in codes:
-            try:
-                stop_idx = codes.index(self.stop_mel_token)
-                valid_len = max(stop_idx - 1, 0)  # 保留至停止标记前一位
-            except ValueError:
-                valid_len = len(codes)
-        else:
-            valid_len = len(codes)
+    #     if self.stop_mel_token in codes:
+    #         try:
+    #             stop_idx = codes.index(self.stop_mel_token)
+    #             valid_len = max(stop_idx - 1, 0)  # 保留至停止标记前一位
+    #         except ValueError:
+    #             valid_len = len(codes)
+    #     else:
+    #         valid_len = len(codes)
         
-        valid_codes = codes[:min(valid_len, len(codes))]
-        valid_latent = latent[0, :seq_len]  # 保持维度兼容性
+    #     valid_codes = codes[:min(valid_len, len(codes))]
+    #     valid_latent = latent[0, :seq_len]  # 保持维度兼容性
         
-        keep_indices = []
-        silence_counter = 0
+    #     keep_indices = []
+    #     silence_counter = 0
         
-        for idx, token in enumerate(valid_codes):
-            if token == silent_token:
-                silence_counter += 1
-            else:
-                silence_counter = 0
+    #     for idx, token in enumerate(valid_codes):
+    #         if token == silent_token:
+    #             silence_counter += 1
+    #         else:
+    #             silence_counter = 0
             
-            if silence_counter <= max_consecutive:
-                keep_indices.append(idx)
+    #         if silence_counter <= max_consecutive:
+    #             keep_indices.append(idx)
         
-        filtered_latent = valid_latent[keep_indices].unsqueeze(0)  # [1, new_seq, dim]
-        print("filtered_latent", filtered_latent.shape)
-        return filtered_latent
+    #     filtered_latent = valid_latent[keep_indices].unsqueeze(0)  # [1, new_seq, dim]
+    #     # print("filtered_latent", filtered_latent.shape)
+    #     return filtered_latent
 
     async def infer(self, audio_prompt: List[str], text, output_path=None, verbose=False):
         print(">> start inference...")
@@ -182,7 +184,7 @@ class IndexTTS:
 
                 # # remove ultra-long silence if exits
                 # # temporarily fix the long silence bug.
-                latent = self.remove_long_silence(codes, latent, max_consecutive=15, silent_token=52)
+                # latent = self.remove_long_silence(codes, latent, max_consecutive=15, silent_token=52)
 
                 m_start_time = time.perf_counter()
                 wav, _ = self.bigvgan(latent, [ap_.transpose(1, 2) for ap_ in auto_conditioning])
@@ -220,7 +222,91 @@ class IndexTTS:
             # 返回以符合Gradio的格式要求
             wav_data = wav.type(torch.int16)
             wav_data = wav_data.numpy().T
+            # print("wav_data ori", wav_data.shape)
+            # wav_data = process_silence(wav_data)
+            # print("wav_data", wav_data.shape)
             return (sampling_rate, wav_data)
+        
+    async def infer_with_ref_audio_embed(self, speaker: str, text):
+        sampling_rate = 24000
+        start_time = time.perf_counter()
+
+        auto_conditioning = self.speaker_dict[speaker]["auto_conditioning"]
+
+        text_tokens_list = self.tokenizer.tokenize(text)
+        sentences = self.tokenizer.split_sentences(text_tokens_list)
+        wavs = []
+        gpt_gen_time = 0
+        bigvgan_time = 0
+
+        speech_conditioning_latent = self.speaker_dict[speaker]["speech_conditioning_latent"]
+
+        for sent in sentences:
+            text_tokens = self.tokenizer.convert_tokens_to_ids(sent)
+            text_tokens = torch.tensor(text_tokens, dtype=torch.int32, device=self.device).unsqueeze(0)
+
+            m_start_time = time.perf_counter()
+            with torch.no_grad():
+                codes, latent = await self.gpt.inference_speech(
+                    speech_conditioning_latent,
+                    text_tokens,
+                    # cond_mel_lengths=torch.tensor([auto_conditioning.shape[-1]], device=text_tokens.device)
+                )
+                gpt_gen_time += time.perf_counter() - m_start_time
+
+                # # remove ultra-long silence if exits
+                # # temporarily fix the long silence bug.
+                # latent = self.remove_long_silence(codes, latent, max_consecutive=15, silent_token=52)
+
+                m_start_time = time.perf_counter()
+                wav, _ = self.bigvgan(latent, [ap_.transpose(1, 2) for ap_ in auto_conditioning])
+                bigvgan_time += time.perf_counter() - m_start_time
+                wav = wav.squeeze(1)
+
+                wav = torch.clamp(32767 * wav, -32767.0, 32767.0)
+                # wavs.append(wav[:, :-512])
+                wavs.append(wav.cpu())  # to cpu before saving
+        end_time = time.perf_counter()
+
+        wav = torch.cat(wavs, dim=1)
+        # print(f">> Total inference time: {end_time - start_time:.2f} seconds")
+
+        # save audio
+        wav = wav.cpu()  # to cpu
+        wav_data = wav.type(torch.int16)
+        wav_data = wav_data.numpy().T
+        # print("wav_data ori", wav_data.shape)
+        # wav_data = process_silence(wav_data)
+        # print("wav_data", wav_data.shape)
+        return (sampling_rate, wav_data)
+    
+    def registry_speaker(self, speaker: str, audio_paths: List[str]):
+        auto_conditioning = []
+        for ap_ in audio_paths:
+            audio, sr = torchaudio.load(ap_)
+            audio = torch.mean(audio, dim=0, keepdim=True)
+            if audio.shape[0] > 1:
+                audio = audio[0].unsqueeze(0)
+            audio = torchaudio.transforms.Resample(sr, 24000)(audio)
+            cond_mel = MelSpectrogramFeatures()(audio).to(self.device)
+            # cond_mel_frame = cond_mel.shape[-1]
+            auto_conditioning.append(cond_mel)
+
+        speech_conditioning_latent = []
+        for cond_mel in auto_conditioning:
+            speech_conditioning_latent_ = self.gpt.get_conditioning(
+                cond_mel,  # .half()
+                torch.tensor([cond_mel.shape[-1]], device=self.device)
+            )
+            speech_conditioning_latent.append(speech_conditioning_latent_)
+        speech_conditioning_latent = torch.stack(speech_conditioning_latent).sum(dim=0)
+        speech_conditioning_latent = speech_conditioning_latent / len(auto_conditioning)
+
+        self.speaker_dict[speaker] = {
+            "auto_conditioning": auto_conditioning,
+            "speech_conditioning_latent": speech_conditioning_latent
+        }
+        print(f"Speaker: {speaker} registered")
 
 
 if __name__ == "__main__":

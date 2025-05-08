@@ -25,12 +25,12 @@ gpt.inference_model.save_pretrained(vllm_save_dir, safe_serialization=True)
 print(f"GPT transformer saved to {vllm_save_dir}")
 
 
-# from safetensors.torch import load_file
+from safetensors.torch import load_file
 
-# # 加载模型参数
-# model_path = os.path.join(vllm_save_dir, "model.safetensors")
-# state_dict = load_file(model_path)
+# 加载模型参数
+model_path = os.path.join(vllm_save_dir, "model.safetensors")
+state_dict = load_file(model_path)
 
-# # 打印所有参数名
-# for key in state_dict.keys():
-#     print(key)
+# 打印所有参数名
+for key in state_dict.keys():
+    print(key)

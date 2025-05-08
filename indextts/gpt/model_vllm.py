@@ -23,86 +23,6 @@ import asyncio
 
 def null_position_embeddings(range, dim):
     return torch.zeros((range.shape[0], range.shape[1], dim), device=range.device)
-
-
-class GPT2InferenceModel(GPT2LMHeadModel):
-    def __init__(self, config, gpt, text_pos_emb, embeddings, norm, linear):
-        super().__init__(config)
-        self.transformer = gpt
-        self.text_pos_embedding = text_pos_emb
-        self.embeddings = embeddings
-        self.lm_head = nn.Sequential(norm, linear)
-
-    def store_mel_emb(self, mel_emb):
-        self.cached_mel_emb = mel_emb
-
-    def forward(
-            self,
-            input_ids=None,
-            past_key_values=None,
-            attention_mask=None,
-            token_type_ids=None,
-            position_ids=None,
-            head_mask=None,
-            inputs_embeds=None,
-            encoder_hidden_states=None,
-            encoder_attention_mask=None,
-            labels=None,
-            use_cache=None,
-            output_attentions=None,
-            output_hidden_states=None,
-            return_dict=None,
-            **kwargs
-    ):
-        assert input_ids is None or input_ids.shape[1] == 1
-        return_dict = (
-            return_dict if return_dict is not None else self.config.use_return_dict
-        )
-
-        # # Create embedding
-        mel_len = self.cached_mel_emb.shape[1]
-        if input_ids is not None:  #  and input_ids.shape[1] == 1
-            inputs_embeds = self.embeddings(input_ids)
-            inputs_embeds = inputs_embeds + self.text_pos_embedding.get_fixed_embedding(
-                attention_mask.shape[1] - mel_len, attention_mask.device
-            )
-        transformer_outputs = self.transformer(
-            inputs_embeds=inputs_embeds,
-            past_key_values=past_key_values,
-            attention_mask=attention_mask,
-            token_type_ids=token_type_ids,
-            position_ids=position_ids,
-            head_mask=head_mask,
-            encoder_hidden_states=encoder_hidden_states,
-            encoder_attention_mask=encoder_attention_mask,
-            use_cache=use_cache,
-            output_attentions=output_attentions,
-            output_hidden_states=output_hidden_states,
-            return_dict=return_dict,
-        )
-        hidden_states = transformer_outputs[0]
-
-        # Set device for model parallelism
-        if self.model_parallel:
-            if torch.backends.mps.is_available():
-                self.to(self.transformer.first_device)
-            else:
-                torch.cuda.set_device(self.transformer.first_device)
-            hidden_states = hidden_states.to(self.lm_head.weight.device)
-
-        lm_logits = self.lm_head(hidden_states)
-
-        if not return_dict:
-            return (lm_logits,) + transformer_outputs[1:]
-
-        return CausalLMOutputWithCrossAttentions(
-            loss=None,
-            logits=lm_logits,
-            past_key_values=transformer_outputs.past_key_values,
-            hidden_states=transformer_outputs.last_hidden_state,
-            attentions=transformer_outputs.attentions,
-            cross_attentions=transformer_outputs.cross_attentions,
-        )
     
 
 class LearnedPositionEmbeddings(nn.Module):
@@ -206,7 +126,7 @@ class UnifiedVoice(nn.Module):
         self.sampling_params = SamplingParams(
             temperature=1.0,
             top_p=0.8,
-            top_k=3,  # 5, 30
+            top_k=30,  # 5, 30
             repetition_penalty=10.0,  # 8.0
             max_tokens=768,  # 605
         )
@@ -244,7 +164,9 @@ class UnifiedVoice(nn.Module):
         latent = []
         async for output in output_generator:
             latent.append(output.hidden_states.clone())
-        codes = output.outputs[0].token_ids[:-2]
-        latent = torch.cat(latent[:-2], dim=0).unsqueeze(0)
-        latent = self.final_norm(latent.float())
+        codes = output.outputs[0].token_ids[1:-1]
+
+        latent = torch.cat(latent[1:-1], dim=0).unsqueeze(0)
+        # latent = self.final_norm(latent.float())
+        latent = latent.float()
         return codes, latent  # [:, trunc_index:]
