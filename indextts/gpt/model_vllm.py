@@ -164,9 +164,9 @@ class UnifiedVoice(nn.Module):
         latent = []
         async for output in output_generator:
             latent.append(output.hidden_states.clone())
-        codes = output.outputs[0].token_ids[1:-1]
+        codes = output.outputs[0].token_ids[:-2]
 
-        latent = torch.cat(latent[1:-1], dim=0).unsqueeze(0)
+        latent = torch.cat(latent[:-2], dim=0).unsqueeze(0)
         # latent = self.final_norm(latent.float())
         latent = latent.float()
         return codes, latent  # [:, trunc_index:]
