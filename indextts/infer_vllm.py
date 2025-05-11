@@ -25,6 +25,43 @@ from indextts.utils.feature_extractors import MelSpectrogramFeatures
 
 from indextts.utils.front import TextNormalizer, TextTokenizer
 
+import matplotlib.pyplot as plt
+
+
+# def fade_in_out(wav, fade_in=int(24000*0.05), fade_out=int(24000*0.05)):
+#     wav = wav.astype(np.float32)
+#     print("wav", np.abs(wav).max(), np.abs(wav).mean(), np.abs(wav).min())
+    
+#     if fade_in > 0:
+#         wav[:fade_in] *= np.linspace(0, 1, fade_in)[:, None]
+    
+#     if fade_out > 0:
+#         wav[-fade_out:] *= np.linspace(1, 0, fade_out)[:, None]
+    
+#     wav = np.clip(wav, -32768, 32767).astype(np.int16)
+#     wav = np.concatenate([np.zeros((int(0.4 * 24000), 1)), wav], axis=0).astype(np.int16)
+#     return wav
+
+def trim_and_pad_silence(wav_data, threshold=1000, min_silence=int(24000*0.5)):
+    # # 1. 去除前端静音
+    # abs_data = np.abs(wav_data).flatten()
+    # first_non_silent = np.argmax(abs_data >= threshold)  # 第一个≥threshold的索引
+    # wav_data = wav_data[max(0, first_non_silent-int(24000*0.1)):]  # 切片保留后端
+    
+    # 2. 处理后端静音
+    abs_trimmed = np.abs(wav_data).flatten()
+    last_non_silent = len(abs_trimmed) - np.argmax(abs_trimmed[::-1] >= threshold)  # 最后一个≥threshold的索引+1
+    
+    # 计算后端静音长度
+    back_silence_length = len(wav_data) - last_non_silent
+    if back_silence_length < min_silence:
+        pad_length = min_silence - back_silence_length
+        padded = np.vstack([wav_data, np.zeros((pad_length, 1))])  # 补0
+    else:
+        padded = wav_data
+    
+    return padded.astype(np.int16)
+
 
 class IndexTTS:
     def __init__(
@@ -101,38 +138,38 @@ class IndexTTS:
 
         self.speaker_dict = {}
     
-    # def remove_long_silence(self, codes: list, latent: torch.Tensor, max_consecutive, silent_token=52):
-    #     assert latent.dim() == 3 and latent.size(0) == 1, "Latent should be (1, seq_len, dim)"
-    #     seq_len, dim = latent.size(1), latent.size(2)
-    #     # print("latent", latent.shape)
+    def remove_long_silence(self, codes: list, latent: torch.Tensor, max_consecutive=15, silent_token=52):
+        assert latent.dim() == 3 and latent.size(0) == 1, "Latent should be (1, seq_len, dim)"
+        seq_len, dim = latent.size(1), latent.size(2)
+        # print("latent", latent.shape)
         
-    #     if self.stop_mel_token in codes:
-    #         try:
-    #             stop_idx = codes.index(self.stop_mel_token)
-    #             valid_len = max(stop_idx - 1, 0)  # 保留至停止标记前一位
-    #         except ValueError:
-    #             valid_len = len(codes)
-    #     else:
-    #         valid_len = len(codes)
+        if self.stop_mel_token in codes:
+            try:
+                stop_idx = codes.index(self.stop_mel_token)
+                valid_len = max(stop_idx - 1, 0)  # 保留至停止标记前一位
+            except ValueError:
+                valid_len = len(codes)
+        else:
+            valid_len = len(codes)
         
-    #     valid_codes = codes[:min(valid_len, len(codes))]
-    #     valid_latent = latent[0, :seq_len]  # 保持维度兼容性
+        valid_codes = codes[:min(valid_len, len(codes))]
+        valid_latent = latent[0, :seq_len]  # 保持维度兼容性
         
-    #     keep_indices = []
-    #     silence_counter = 0
+        keep_indices = []
+        silence_counter = 0
         
-    #     for idx, token in enumerate(valid_codes):
-    #         if token == silent_token:
-    #             silence_counter += 1
-    #         else:
-    #             silence_counter = 0
+        for idx, token in enumerate(valid_codes):
+            if token == silent_token:
+                silence_counter += 1
+            else:
+                silence_counter = 0
             
-    #         if silence_counter <= max_consecutive:
-    #             keep_indices.append(idx)
+            if silence_counter <= max_consecutive:
+                keep_indices.append(idx)
         
-    #     filtered_latent = valid_latent[keep_indices].unsqueeze(0)  # [1, new_seq, dim]
-    #     # print("filtered_latent", filtered_latent.shape)
-    #     return filtered_latent
+        filtered_latent = valid_latent[keep_indices].unsqueeze(0)  # [1, new_seq, dim]
+        # print("filtered_latent", filtered_latent.shape)
+        return filtered_latent
 
     async def infer(self, audio_prompt: List[str], text, output_path=None, verbose=False):
         print(">> start inference...")
@@ -184,7 +221,7 @@ class IndexTTS:
 
                 # # remove ultra-long silence if exits
                 # # temporarily fix the long silence bug.
-                # latent = self.remove_long_silence(codes, latent, max_consecutive=15, silent_token=52)
+                latent = self.remove_long_silence(codes, latent)
 
                 m_start_time = time.perf_counter()
                 wav, _ = self.bigvgan(latent, [ap_.transpose(1, 2) for ap_ in auto_conditioning])
@@ -222,12 +259,25 @@ class IndexTTS:
             # 返回以符合Gradio的格式要求
             wav_data = wav.type(torch.int16)
             wav_data = wav_data.numpy().T
-            # print("wav_data ori", wav_data.shape)
-            # wav_data = process_silence(wav_data)
-            # print("wav_data", wav_data.shape)
+
+            # samples = wav_data.flatten()
+            # plt.figure(figsize=(12, 4))
+            # plt.plot(samples, color='blue', linewidth=0.5)
+            # plt.title("Waveform Amplitude")
+            # plt.xlabel("Sample Index")
+            # plt.ylabel("Amplitude")
+            # plt.grid(True, linestyle='--', alpha=0.6)
+            
+            # # 保存图片
+            # plt.savefig("/data/jcxy/hhy/workspace/index-tts-vllm/indextts/temp.png", dpi=300, bbox_inches='tight')
+            # plt.close()
+
+            wav_data = trim_and_pad_silence(wav_data)
             return (sampling_rate, wav_data)
         
     async def infer_with_ref_audio_embed(self, speaker: str, text):
+        text = text.replace("嗯", "EN4")
+        text = text.replace("嘿", "HEI1")
         sampling_rate = 24000
         start_time = time.perf_counter()
 
@@ -256,7 +306,7 @@ class IndexTTS:
 
                 # # remove ultra-long silence if exits
                 # # temporarily fix the long silence bug.
-                # latent = self.remove_long_silence(codes, latent, max_consecutive=15, silent_token=52)
+                latent = self.remove_long_silence(codes, latent)
 
                 m_start_time = time.perf_counter()
                 wav, _ = self.bigvgan(latent, [ap_.transpose(1, 2) for ap_ in auto_conditioning])
@@ -275,9 +325,7 @@ class IndexTTS:
         wav = wav.cpu()  # to cpu
         wav_data = wav.type(torch.int16)
         wav_data = wav_data.numpy().T
-        # print("wav_data ori", wav_data.shape)
-        # wav_data = process_silence(wav_data)
-        # print("wav_data", wav_data.shape)
+        wav_data = trim_and_pad_silence(wav_data)
         return (sampling_rate, wav_data)
     
     def registry_speaker(self, speaker: str, audio_paths: List[str]):
