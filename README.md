@@ -86,8 +86,11 @@ import requests
 
 url = "http://0.0.0.0:11996/tts_url"
 data = {
-    "text": "还是会想你",
-    "audio_paths": ["audio1.wav", "audio2.wav"]
+    "text": "还是会想你，还是想登你",
+    "audio_paths": [  # 支持多参考音频
+        "audio1.wav",
+        "audio2.wav"
+    ]
 }
 
 response = requests.post(url, json=data)

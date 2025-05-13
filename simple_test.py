@@ -12,7 +12,7 @@ import os
 total_req_num = 0
 
 async def main():
-    model_path = "/path/to/IndexTeam/Index-TTS"
+    model_path = "/path/to/IndexTeam/Index-TTS/vllm"
     
     engine_args = AsyncEngineArgs(
         model=model_path,
