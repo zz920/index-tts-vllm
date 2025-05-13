@@ -278,6 +278,7 @@ class IndexTTS:
     async def infer_with_ref_audio_embed(self, speaker: str, text):
         text = text.replace("嗯", "EN4")
         text = text.replace("嘿", "HEI1")
+        text = text.replace("哈哈", "HA1HA1")
         sampling_rate = 24000
         start_time = time.perf_counter()
 

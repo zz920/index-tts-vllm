@@ -19,7 +19,8 @@ def patched_verify_args(self) -> None:
         repetition_penalty_temp = self.repetition_penalty
         self.repetition_penalty = 2.0
     original_verify_args(self)
-    self.repetition_penalty = repetition_penalty_temp
+    if repetition_penalty_temp != -1:
+        self.repetition_penalty = repetition_penalty_temp
 
 SamplingParams._verify_args = patched_verify_args
 print("⚠️  SamplingParams._verify_args Patched")

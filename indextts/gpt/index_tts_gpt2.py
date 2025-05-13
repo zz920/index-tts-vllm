@@ -24,7 +24,7 @@ from typing import (Final, Iterable, List, Literal, Mapping, Optional,
 import numpy as np
 import torch
 from torch import nn
-from transformers import GPT2Config
+# from transformers import GPT2Config
 from transformers import BatchFeature
 
 from vllm.attention import Attention, AttentionMetadata
@@ -33,11 +33,11 @@ from vllm.config import CacheConfig, VllmConfig
 from vllm.distributed.parallel_state import (
     get_pp_group, get_tensor_model_parallel_world_size)
 from vllm.model_executor.layers.activation import get_act_fn
-from vllm.model_executor.layers.linear import (ColumnParallelLinear,
-                                               QKVParallelLinear,
-                                               RowParallelLinear)
+# from vllm.model_executor.layers.linear import (ColumnParallelLinear,
+#                                                QKVParallelLinear,
+#                                                RowParallelLinear)
 from vllm.model_executor.layers.logits_processor import LogitsProcessor
-from vllm.model_executor.layers.quantization import QuantizationConfig
+# from vllm.model_executor.layers.quantization import QuantizationConfig
 from vllm.model_executor.layers.sampler import SamplerOutput, get_sampler
 from vllm.model_executor.layers.vocab_parallel_embedding import (
     ParallelLMHead, VocabParallelEmbedding)
@@ -59,6 +59,8 @@ from vllm.multimodal.inputs import (MultiModalDataDict, MultiModalFieldConfig,
                                     NestedTensors)
 from vllm.multimodal import MULTIMODAL_REGISTRY
 from vllm.multimodal.parse import MultiModalDataItems
+
+from vllm.model_executor.models.gpt2 import GPT2Block  #, GPT2MLP, GPT2Attention
 
 class TTSProcessingInfo(BaseProcessingInfo):
 
@@ -147,143 +149,6 @@ class TTSMultiModalProcessor(BaseMultiModalProcessor[TTSProcessingInfo]):
         ]
 
 
-class GPT2Attention(nn.Module):
-
-    def __init__(
-        self,
-        config: GPT2Config,
-        cache_config: Optional[CacheConfig] = None,
-        quant_config: Optional[QuantizationConfig] = None,
-        prefix: str = "",
-    ):
-        super().__init__()
-        self.hidden_size = config.n_embd
-        total_num_heads = config.n_head
-        tensor_model_parallel_world_size = (
-            get_tensor_model_parallel_world_size())
-        assert total_num_heads % tensor_model_parallel_world_size == 0
-        self.num_heads = total_num_heads // tensor_model_parallel_world_size
-        self.head_dim = self.hidden_size // total_num_heads
-        self.scale = self.head_dim**-0.5
-
-        self.c_attn = QKVParallelLinear(
-            self.hidden_size,
-            self.head_dim,
-            total_num_heads,
-            bias=True,
-            quant_config=quant_config,
-            prefix=f"{prefix}.c_attn",
-        )
-        self.c_proj = RowParallelLinear(
-            self.hidden_size,
-            self.hidden_size,
-            bias=True,
-            quant_config=quant_config,
-            prefix=f"{prefix}.c_proj",
-        )
-        self.attn = Attention(self.num_heads,
-                              self.head_dim,
-                              scale=self.scale,
-                              cache_config=cache_config,
-                              quant_config=quant_config,
-                              prefix=f"{prefix}.attn")
-
-    def forward(
-        self,
-        hidden_states: torch.Tensor,
-        kv_cache: torch.Tensor,
-        attn_metadata: AttentionMetadata,
-    ) -> torch.Tensor:
-        qkv, _ = self.c_attn(hidden_states)
-        q, k, v = qkv.chunk(chunks=3, dim=-1)
-        attn_output = self.attn(q, k, v, kv_cache, attn_metadata)
-        attn_output, _ = self.c_proj(attn_output)
-        return attn_output
-
-
-class GPT2MLP(nn.Module):
-
-    def __init__(
-        self,
-        intermediate_size: int,
-        config: GPT2Config,
-        quant_config: Optional[QuantizationConfig] = None,
-        prefix: str = "",
-    ):
-        super().__init__()
-        hidden_size = config.n_embd
-        self.c_fc = ColumnParallelLinear(
-            hidden_size,
-            intermediate_size,
-            bias=True,
-            quant_config=quant_config,
-            prefix=f"{prefix}.c_fc",
-        )
-        self.c_proj = RowParallelLinear(
-            intermediate_size,
-            hidden_size,
-            bias=True,
-            quant_config=quant_config,
-            prefix=f"{prefix}.c_proj",
-        )
-        self.act = get_act_fn(config.activation_function)
-
-    def forward(self, hidden_states: torch.Tensor) -> torch.Tensor:
-        hidden_states, _ = self.c_fc(hidden_states)
-        hidden_states = self.act(hidden_states)
-        hidden_states, _ = self.c_proj(hidden_states)
-        return hidden_states
-
-
-class GPT2Block(nn.Module):
-
-    def __init__(
-        self,
-        config: GPT2Config,
-        cache_config: Optional[CacheConfig] = None,
-        quant_config: Optional[QuantizationConfig] = None,
-        prefix: str = "",
-    ):
-        super().__init__()
-        hidden_size = config.n_embd
-        inner_dim = (config.n_inner if config.n_inner is not None else 4 *
-                     hidden_size)
-
-        self.ln_1 = nn.LayerNorm(hidden_size, eps=config.layer_norm_epsilon)
-        self.attn = GPT2Attention(config,
-                                  cache_config,
-                                  quant_config,
-                                  prefix=f"{prefix}.attn")
-        self.ln_2 = nn.LayerNorm(hidden_size, eps=config.layer_norm_epsilon)
-        self.mlp = GPT2MLP(inner_dim,
-                           config,
-                           quant_config,
-                           prefix=f"{prefix}.mlp")
-
-    def forward(
-        self,
-        hidden_states: torch.Tensor,
-        kv_cache: torch.Tensor,
-        attn_metadata: AttentionMetadata,
-    ) -> torch.Tensor:
-        residual = hidden_states
-        hidden_states = self.ln_1(hidden_states)
-        attn_output = self.attn(
-            hidden_states=hidden_states,
-            kv_cache=kv_cache,
-            attn_metadata=attn_metadata,
-        )
-        # residual connection
-        hidden_states = attn_output + residual
-
-        residual = hidden_states
-        hidden_states = self.ln_2(hidden_states)
-        feed_forward_hidden_states = self.mlp(hidden_states)
-        # residual connection
-        hidden_states = residual + feed_forward_hidden_states
-        return hidden_states
-
-
 @support_torch_compile
 class GPT2Model(nn.Module):
 
@@ -328,12 +193,13 @@ class GPT2Model(nn.Module):
         inputs_embeds: Optional[torch.Tensor],
     ) -> Union[torch.Tensor, IntermediateTensors]:
         assert inputs_embeds is not None
-        if get_pp_group().is_first_rank:
-            # position_embeds = self.wpe(position_ids)
-            hidden_states = inputs_embeds  # + position_embeds
-        else:
-            assert intermediate_tensors is not None
-            hidden_states = intermediate_tensors["hidden_states"]
+        # if get_pp_group().is_first_rank:
+        #     # position_embeds = self.wpe(position_ids)
+        #     hidden_states = inputs_embeds  # + position_embeds
+        # else:
+        #     assert intermediate_tensors is not None
+        #     hidden_states = intermediate_tensors["hidden_states"]
+        hidden_states = inputs_embeds
 
         for i in range(self.start_layer, self.end_layer):
             layer = self.h[i]
@@ -418,12 +284,12 @@ class GPT2TTSModel(nn.Module, SupportsPP, SupportsMultiModal):
         **kwargs,
     ) -> Union[torch.Tensor, IntermediateTensors]:
         audio_embeds = kwargs.pop("image_embeds", None)
-        # print("audio_embeds", audio_embeds.shape if audio_embeds is not None else audio_embeds)
         if audio_embeds is not None:
             if not isinstance(audio_embeds, list):
-                audio_embeds = [audio_embeds[0]]
-            # mel_len = torch.tensor([emb.shape[1] for emb in audio_embeds], dtype=positions.dtype, device=positions.device)
-            audio_embeds = torch.cat(audio_embeds, dim=1).squeeze(0).to(dtype=self.audio_emb.weight.dtype)
+                audio_embeds = audio_embeds.squeeze(1).permute(1, 0, 2).reshape(-1, audio_embeds.shape[-1])
+            else:
+                audio_embeds = torch.cat(audio_embeds, dim=1).squeeze(0)
+            audio_embeds = audio_embeds.to(dtype=self.audio_emb.weight.dtype)
 
         if audio_embeds is not None:  # and audio_embeds.shape[0] == input_ids.shape[0]   prefill
             inputs_embeds = audio_embeds

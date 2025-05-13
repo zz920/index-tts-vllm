@@ -116,10 +116,8 @@ class UnifiedVoice(nn.Module):
         engine_args = AsyncEngineArgs(
             model=vllm_dir,
             tensor_parallel_size=1,
-            # skip_tokenizer_init=True,
             dtype="auto",
             gpu_memory_utilization=0.5,
-            # tokenizer=None,
             # enforce_eager=True,
         )
         self.llm = AsyncLLMEngine.from_engine_args(engine_args)
