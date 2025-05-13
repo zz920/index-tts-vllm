@@ -365,4 +365,6 @@ if __name__ == "__main__":
     text="There is a vehicle arriving in dock number 7?"
 
     tts = IndexTTS(cfg_path="checkpoints/config.yaml", model_dir="checkpoints", is_fp16=True, use_cuda_kernel=False)
-    tts.infer(audio_prompt=prompt_wav, text=text, output_path="gen.wav", verbose=True)
+    
+    import asyncio
+    asyncio.run(tts.infer(audio_prompt=prompt_wav, text=text, output_path="gen.wav", verbose=True))
