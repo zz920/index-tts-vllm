@@ -66,3 +66,34 @@ bash convert_hf_format.sh
 python webui.py
 ```
 第一次启动可能会久一些，因为要对 bigvgan 进行 cuda 核编译
+
+
+## API
+使用 fastapi 封装了 api 接口，启动示例如下：
+
+```bash
+python api_server.py --model_dir /your/path/to/Index-TTS --port 11996
+```
+
+### 启动参数
+- `--model_dir`: 模型权重下载路径
+- `--host`: 服务ip地址
+- `--port`: 服务端口
+
+### 请求示例
+```python
+import requests
+
+url = "http://0.0.0.0:11996/tts_url"
+data = {
+    "text": "还是会想你",
+    "audio_paths": ["audio1.wav", "audio2.wav"]
+}
+
+response = requests.post(url, json=data)
+with open("output.wav", "wb") as f:
+    f.write(response.content)
+```
+
+## 并发测试
+参考 `simple_test.py`

@@ -12,7 +12,7 @@ import os
 total_req_num = 0
 
 async def main():
-    model_path = "/data/jcxy/hhy/models/IndexTeam/Index-TTS/vllm"
+    model_path = "/path/to/IndexTeam/Index-TTS"
     
     engine_args = AsyncEngineArgs(
         model=model_path,
@@ -32,7 +32,7 @@ async def main():
         max_tokens=768,
     )
 
-    req_num = 64  # 4
+    req_num = 16  # 并发请求量
 
     async def continuous_request():
         """持续发送请求的循环任务"""

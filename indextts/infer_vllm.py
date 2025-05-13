@@ -259,19 +259,6 @@ class IndexTTS:
             # 返回以符合Gradio的格式要求
             wav_data = wav.type(torch.int16)
             wav_data = wav_data.numpy().T
-
-            # samples = wav_data.flatten()
-            # plt.figure(figsize=(12, 4))
-            # plt.plot(samples, color='blue', linewidth=0.5)
-            # plt.title("Waveform Amplitude")
-            # plt.xlabel("Sample Index")
-            # plt.ylabel("Amplitude")
-            # plt.grid(True, linestyle='--', alpha=0.6)
-            
-            # # 保存图片
-            # plt.savefig("/data/jcxy/hhy/workspace/index-tts-vllm/indextts/temp.png", dpi=300, bbox_inches='tight')
-            # plt.close()
-
             wav_data = trim_and_pad_silence(wav_data)
             return (sampling_rate, wav_data)
         
@@ -280,7 +267,6 @@ class IndexTTS:
         text = text.replace("嘿", "HEI1")
         text = text.replace("哈哈", "HA1HA1")
         sampling_rate = 24000
-        start_time = time.perf_counter()
 
         auto_conditioning = self.speaker_dict[speaker]["auto_conditioning"]
 
@@ -316,8 +302,7 @@ class IndexTTS:
 
                 wav = torch.clamp(32767 * wav, -32767.0, 32767.0)
                 # wavs.append(wav[:, :-512])
-                wavs.append(wav.cpu())  # to cpu before saving
-        end_time = time.perf_counter()
+                wavs.append(wav)  # to cpu before saving
 
         wav = torch.cat(wavs, dim=1)
         # print(f">> Total inference time: {end_time - start_time:.2f} seconds")
