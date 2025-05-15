@@ -221,7 +221,15 @@ class IndexTTS:
 
                 # # remove ultra-long silence if exits
                 # # temporarily fix the long silence bug.
-                latent = self.remove_long_silence(codes, latent)
+                # latent = self.remove_long_silence(codes, latent)
+
+                codes = torch.tensor(codes, dtype=torch.long, device=self.device).unsqueeze(0)
+                code_lens = torch.tensor([codes.shape[-1]], device=codes.device, dtype=codes.dtype)
+                latent = self.gpt(speech_conditioning_latent, text_tokens,
+                                torch.tensor([text_tokens.shape[-1]], device=text_tokens.device), codes,
+                                code_lens*self.gpt.mel_length_compression,
+                                cond_mel_lengths=torch.tensor([speech_conditioning_latent.shape[-1]], device=text_tokens.device),
+                                return_latent=True, clip_inputs=False)
 
                 m_start_time = time.perf_counter()
                 wav, _ = self.bigvgan(latent, [ap_.transpose(1, 2) for ap_ in auto_conditioning])
@@ -293,7 +301,15 @@ class IndexTTS:
 
                 # # remove ultra-long silence if exits
                 # # temporarily fix the long silence bug.
-                latent = self.remove_long_silence(codes, latent)
+                # latent = self.remove_long_silence(codes, latent)
+
+                codes = torch.tensor(codes, dtype=torch.long, device=self.device).unsqueeze(0)
+                code_lens = torch.tensor([codes.shape[-1]], device=codes.device, dtype=codes.dtype)
+                latent = self.gpt(speech_conditioning_latent, text_tokens,
+                                torch.tensor([text_tokens.shape[-1]], device=text_tokens.device), codes,
+                                code_lens*self.gpt.mel_length_compression,
+                                cond_mel_lengths=torch.tensor([speech_conditioning_latent.shape[-1]], device=text_tokens.device),
+                                return_latent=True, clip_inputs=False)
 
                 m_start_time = time.perf_counter()
                 wav, _ = self.bigvgan(latent, [ap_.transpose(1, 2) for ap_ in auto_conditioning])

@@ -1,5 +1,6 @@
 import uuid
 import os
+import functools
 import patch_vllm  # ⚠️ Monkey Patch, do not delete this line
 
 import torch
@@ -97,6 +98,21 @@ class UnifiedVoice(nn.Module):
 
         max_mel_seq_len = self.max_mel_tokens + 2 + self.max_conditioning_inputs
         max_text_seq_len = self.max_text_tokens + 2
+        gpt_config = GPT2Config(vocab_size=256,  # Unused.
+                                n_positions=max_mel_seq_len + max_text_seq_len,
+                                n_ctx=max_mel_seq_len + max_text_seq_len,
+                                n_embd=model_dim,
+                                n_layer=layers,
+                                n_head=heads,
+                                activation_function=activation_function or "gelu_new",
+                                gradient_checkpointing=False,
+                                use_cache=True)
+        self.gpt = GPT2Model(gpt_config)
+        # Override the built in positional embeddings
+        del self.gpt.wpe
+        self.gpt.wpe = functools.partial(null_position_embeddings, dim=model_dim)
+        # Built-in token embeddings are unused.
+        del self.gpt.wte
         self.mel_pos_embedding, self.text_pos_embedding  = LearnedPositionEmbeddings(max_mel_seq_len, model_dim), LearnedPositionEmbeddings(max_text_seq_len, model_dim)
 
         self.mel_solo_embedding = 0
@@ -159,14 +175,71 @@ class UnifiedVoice(nn.Module):
         multi_modal_data = {"image": inputs_embeds}
         tokens_prompt = TokensPrompt(prompt_token_ids=fake_inputs, multi_modal_data=multi_modal_data)
         output_generator = self.llm.generate(tokens_prompt, sampling_params=self.sampling_params, request_id=uuid.uuid4())
-        latent = []
+        # latent = []
         async for output in output_generator:
-            latent.append(output.hidden_states.clone())
+            # latent.append(output.hidden_states.clone())
+            pass
         codes = output.outputs[0].token_ids[:-2]
 
-        latent = torch.cat(latent[:-2], dim=0).unsqueeze(0)
-        # latent = self.final_norm(latent.float())
-        latent = latent.float()
-        print("codes", len(codes), codes)
-        print("latent", latent.shape, latent)
-        return codes, latent  # [:, trunc_index:]
+        # latent = torch.cat(latent[:-2], dim=0).unsqueeze(0)
+        # # latent = self.final_norm(latent.float())
+        # latent = latent.float()
+        # print("codes", len(codes), codes)
+        # print("latent", latent.shape, latent)
+        return codes, None  # , latent
+
+    def set_mel_padding(self, mel_input_tokens, mel_lengths):
+        """
+        Given mel tokens that are derived from a padded audio clip and the actual lengths of each batch element in
+        that audio clip, reformats the tokens with STOP_MEL_TOKEN in place of the zero padding. This is required
+        preformatting to create a working TTS model.
+        """
+        for b in range(len(mel_lengths)):
+            # Due to the convolutional nature of how these tokens are generated,
+            # it would be best if the model predicts a token past the actual last token.
+            actual_end = mel_lengths[b]
+            if actual_end < mel_input_tokens.shape[-1]:
+                mel_input_tokens[b, actual_end:] = self.stop_mel_token
+        return mel_input_tokens
+
+    def set_text_padding(self, text_input_tokens, text_lengths):
+        """
+        Given mel tokens that are derived from a padded audio clip and the actual lengths of each batch element in
+        that audio clip, reformats the tokens with STOP_MEL_TOKEN in place of the zero padding. This is required
+        preformatting to create a working TTS model.
+        """
+        for b in range(len(text_lengths)):
+            # Due to the convolutional nature of how these tokens are generated,
+            # it would be best if the model predicts a token past the actual last token.
+            actual_end = text_lengths[b]
+            if actual_end < text_input_tokens.shape[-1]:
+                text_input_tokens[b, actual_end:] = self.stop_text_token
+        return text_input_tokens
+
+    def forward(self, speech_conditioning_latent, text_inputs, text_lengths, mel_codes, wav_lengths,
+                cond_mel_lengths=None, types=None, text_first=True, raw_mels=None, return_attentions=False,
+                return_latent=True, clip_inputs=False):
+        # Set padding areas within MEL (currently it is coded with the MEL code for <zero>).
+        # mel_codes_lengths = torch.div(wav_lengths, self.mel_length_compression, rounding_mode='trunc')
+        mel_codes_lengths = torch.ceil(wav_lengths / self.mel_length_compression).long() + 1
+        mel_codes = self.set_mel_padding(mel_codes, mel_codes_lengths)
+
+        text_inputs = self.set_text_padding(text_inputs, text_lengths)
+        text_inputs = F.pad(text_inputs, (0, 1), value=self.stop_text_token)
+        mel_codes = F.pad(mel_codes, (0, 1), value=self.stop_mel_token)
+
+        conds = speech_conditioning_latent
+        text_inputs, text_targets = self.build_aligned_inputs_and_targets(text_inputs, self.start_text_token, self.stop_text_token)
+        text_emb = self.text_embedding(text_inputs) + self.text_pos_embedding(text_inputs)
+        mel_codes, mel_targets = self.build_aligned_inputs_and_targets(mel_codes, self.start_mel_token, self.stop_mel_token)
+        mel_inp = mel_codes
+        mel_emb = self.mel_embedding(mel_inp)
+        mel_emb = mel_emb + self.mel_pos_embedding(mel_codes)
+
+        emb = torch.cat([conds, text_emb, mel_emb], dim=1)
+        gpt_out = self.gpt(inputs_embeds=emb, return_dict=True)
+        offset = conds.shape[1]
+        enc = gpt_out.last_hidden_state[:, offset:]
+        enc = self.final_norm(enc)
+        
+        return enc[:, -mel_emb.shape[1]:][:, :-2]
