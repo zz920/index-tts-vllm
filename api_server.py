@@ -92,6 +92,7 @@ async def tts_api(request: Request):
     
     except Exception as ex:
         tb_str = ''.join(traceback.format_exception(type(ex), ex, ex.__traceback__))
+        print(tb_str)
         return JSONResponse(
             status_code=500,
             content={

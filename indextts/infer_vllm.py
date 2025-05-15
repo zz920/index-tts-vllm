@@ -240,6 +240,7 @@ class IndexTTS:
                 print(f"wav shape: {wav.shape}", "min:", wav.min(), "max:", wav.max())
                 # wavs.append(wav[:, :-512])
                 wavs.append(wav.cpu())  # to cpu before saving
+        torch.cuda.empty_cache()
         end_time = time.perf_counter()
 
         wav = torch.cat(wavs, dim=1)
@@ -270,6 +271,7 @@ class IndexTTS:
             return (sampling_rate, wav_data)
         
     async def infer_with_ref_audio_embed(self, speaker: str, text):
+        start_time = time.perf_counter()
         text = text.replace("嗯", "EN4")
         text = text.replace("嘿", "HEI1")
         text = text.replace("嗨", "HAI4")
@@ -319,9 +321,17 @@ class IndexTTS:
                 wav = torch.clamp(32767 * wav, -32767.0, 32767.0)
                 # wavs.append(wav[:, :-512])
                 wavs.append(wav)  # to cpu before saving
+        torch.cuda.empty_cache()
+        end_time = time.perf_counter()
 
         wav = torch.cat(wavs, dim=1)
+        # wav_length = wav.shape[-1] / sampling_rate
+        # # print(f">> Total inference time: {end_time - start_time:.2f} seconds")
+        # print(f">> gpt_gen_time: {gpt_gen_time:.2f} seconds")
+        # print(f">> bigvgan_time: {bigvgan_time:.2f} seconds")
         # print(f">> Total inference time: {end_time - start_time:.2f} seconds")
+        # print(f">> Generated audio length: {wav_length:.2f} seconds")
+        # print(f">> RTF: {(end_time - start_time) / wav_length:.4f}")
 
         # save audio
         wav = wav.cpu()  # to cpu
