@@ -9,7 +9,7 @@
 推理速度在单卡 RTX 4090 上的提升为：
 - 单个请求的 RTF (Real-Time Factor)：≈0.3 -> ≈0.1
 - 单个请求的 gpt 模型 decode 速度：≈90 token / s -> ≈280 token / s
-- 并发量：gpu_memory_utilization设置为0.5（约12GB显存）的情况下，vllm 显示 `Maximum concurrency for 608 tokens per request: 237.18x`，两百多并发，man！当然考虑 TTFT 以及其他推理成本（bigvgan 等）保守估计 20 左右的并发应该无压力（没实测过，手动狗头）
+- 并发量：gpu_memory_utilization设置为0.5（约12GB显存）的情况下，vllm 显示 `Maximum concurrency for 608 tokens per request: 237.18x`，两百多并发，man！当然考虑 TTFT 以及其他推理成本（bigvgan 等），实测 16 左右的并发无压力（测速脚本参考 `simple_test.py`）
 
 ## 新特性
 - 支持多角色音频混合：可以传入多个参考音频，TTS 输出的角色声线为多个参考音频的混合版本（输入多个参考音频会导致输出的角色声线不稳定，可以抽卡抽到满意的声线再作为参考音频）
@@ -99,4 +99,4 @@ with open("output.wav", "wb") as f:
 ```
 
 ## 并发测试
-参考 `simple_test.py`
+参考 `simple_test.py`，需先启动 API 服务
