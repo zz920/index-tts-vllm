@@ -117,7 +117,7 @@ class UnifiedVoice(nn.Module):
             model=vllm_dir,
             tensor_parallel_size=1,
             dtype="auto",
-            gpu_memory_utilization=0.5,
+            gpu_memory_utilization=0.25,
             # enforce_eager=True,
         )
         self.llm = AsyncLLMEngine.from_engine_args(engine_args)
@@ -167,4 +167,6 @@ class UnifiedVoice(nn.Module):
         latent = torch.cat(latent[:-2], dim=0).unsqueeze(0)
         # latent = self.final_norm(latent.float())
         latent = latent.float()
+        print("codes", len(codes), codes)
+        print("latent", latent.shape, latent)
         return codes, latent  # [:, trunc_index:]

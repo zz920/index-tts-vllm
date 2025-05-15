@@ -286,7 +286,7 @@ class GPT2TTSModel(nn.Module, SupportsPP, SupportsMultiModal):
         audio_embeds = kwargs.pop("image_embeds", None)
         if audio_embeds is not None:
             if not isinstance(audio_embeds, list):
-                audio_embeds = audio_embeds.squeeze(1).permute(1, 0, 2).reshape(-1, audio_embeds.shape[-1])
+                audio_embeds = audio_embeds.squeeze(1).reshape(-1, audio_embeds.shape[-1])
             else:
                 audio_embeds = torch.cat(audio_embeds, dim=1).squeeze(0)
             audio_embeds = audio_embeds.to(dtype=self.audio_emb.weight.dtype)

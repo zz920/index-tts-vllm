@@ -299,7 +299,7 @@ async def patched_step_async(
                 self._process_model_outputs(ctx=ctx)
             assert len(ctx.output_queue) == 0
         
-        # print("hidden_states", outputs[0].hidden_states.shape)
+        # print("step_async outputs", outputs)
         for idx in range(len(ctx.request_outputs)):
             ctx.request_outputs[idx].hidden_states = outputs[0].hidden_states[idx: idx+1]
         return ctx.request_outputs
@@ -452,6 +452,7 @@ def patched_process_model_outputs(self,
                 finished_now.append(i)
 
         # Generate outputs for the requests that finished this iteration
+        # print("process_model_outputs1 outputs", len(outputs), [hs.shape for hs in outputs[0].hidden_states])
         for i in finished_now:
             scheduled_seq_group = scheduler_outputs.scheduled_seq_groups[i]
 
@@ -494,6 +495,7 @@ def patched_process_model_outputs(self,
             return
 
         # Create the outputs
+        # print("process_model_outputs2 outputs", len(outputs), [hs.shape for hs in outputs[0].hidden_states])
         for i in indices:
             if i in skip or i in finished_before or i in finished_now:
                 continue  # Avoids double processing

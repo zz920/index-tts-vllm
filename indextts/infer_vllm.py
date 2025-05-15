@@ -42,7 +42,7 @@ import matplotlib.pyplot as plt
 #     wav = np.concatenate([np.zeros((int(0.4 * 24000), 1)), wav], axis=0).astype(np.int16)
 #     return wav
 
-def trim_and_pad_silence(wav_data, threshold=1000, min_silence=int(24000*0.5)):
+def trim_and_pad_silence(wav_data, threshold=1000, min_silence=int(24000*0.4)):
     # # 1. 去除前端静音
     # abs_data = np.abs(wav_data).flatten()
     # first_non_silent = np.argmax(abs_data >= threshold)  # 第一个≥threshold的索引
@@ -236,7 +236,6 @@ class IndexTTS:
 
         wav = torch.cat(wavs, dim=1)
         wav_length = wav.shape[-1] / sampling_rate
-        # print(f">> Reference audio length: {cond_mel_frame * 256 / sampling_rate:.2f} seconds")
         print(f">> gpt_gen_time: {gpt_gen_time:.2f} seconds")
         print(f">> bigvgan_time: {bigvgan_time:.2f} seconds")
         print(f">> Total inference time: {end_time - start_time:.2f} seconds")
@@ -265,6 +264,7 @@ class IndexTTS:
     async def infer_with_ref_audio_embed(self, speaker: str, text):
         text = text.replace("嗯", "EN4")
         text = text.replace("嘿", "HEI1")
+        text = text.replace("嗨", "HAI4")
         text = text.replace("哈哈", "HA1HA1")
         sampling_rate = 24000
 
