@@ -65,7 +65,7 @@ def trim_and_pad_silence(wav_data, threshold=1000, min_silence=int(24000*0.4)):
 
 class IndexTTS:
     def __init__(
-        self, cfg_path="checkpoints/config.yaml", model_dir="checkpoints", is_fp16=True, device=None, use_cuda_kernel=None,
+        self, cfg_path="checkpoints/config.yaml", model_dir="checkpoints", gpu_memory_utilization=0.25, is_fp16=True, device=None, use_cuda_kernel=None,
     ):
         """
         Args:
@@ -98,7 +98,7 @@ class IndexTTS:
         self.dtype = torch.float16 if self.is_fp16 else None
         self.stop_mel_token = self.cfg.gpt.stop_mel_token
 
-        self.gpt = UnifiedVoice(**self.cfg.gpt, model_dir=model_dir)
+        self.gpt = UnifiedVoice(gpu_memory_utilization, **self.cfg.gpt, model_dir=model_dir)
         self.gpt_path = os.path.join(self.model_dir, self.cfg.gpt_checkpoint)
         load_checkpoint(self.gpt, self.gpt_path)
         self.gpt = self.gpt.to(self.device)
@@ -367,15 +367,3 @@ class IndexTTS:
             "speech_conditioning_latent": speech_conditioning_latent
         }
         print(f"Speaker: {speaker} registered")
-
-
-if __name__ == "__main__":
-    prompt_wav="test_data/input.wav"
-    #text="晕 XUAN4 是 一 种 GAN3 觉"
-    #text='大家好，我现在正在bilibili 体验 ai 科技，说实话，来之前我绝对想不到！AI技术已经发展到这样匪夷所思的地步了！'
-    text="There is a vehicle arriving in dock number 7?"
-
-    tts = IndexTTS(cfg_path="checkpoints/config.yaml", model_dir="checkpoints", is_fp16=True, use_cuda_kernel=False)
-    
-    import asyncio
-    asyncio.run(tts.infer(audio_prompt=prompt_wav, text=text, output_path="gen.wav", verbose=True))

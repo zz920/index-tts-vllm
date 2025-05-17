@@ -42,7 +42,8 @@ class LearnedPositionEmbeddings(nn.Module):
 
 
 class UnifiedVoice(nn.Module):
-    def __init__(self, layers=8, model_dim=512, heads=8, max_text_tokens=120, max_mel_tokens=250, max_conditioning_inputs=1,
+    def __init__(self, gpu_memory_utilization=0.25,
+                 layers=8, model_dim=512, heads=8, max_text_tokens=120, max_mel_tokens=250, max_conditioning_inputs=1,
                  mel_length_compression=1024, number_text_tokens=256,
                  start_text_token=0, stop_text_token=1, number_mel_codes=8194, start_mel_token=8192, stop_mel_token=8193,
                  types=1, activation_function=None,
@@ -133,7 +134,7 @@ class UnifiedVoice(nn.Module):
             model=vllm_dir,
             tensor_parallel_size=1,
             dtype="auto",
-            gpu_memory_utilization=0.25,
+            gpu_memory_utilization=gpu_memory_utilization,
             # enforce_eager=True,
         )
         self.llm = AsyncLLMEngine.from_engine_args(engine_args)

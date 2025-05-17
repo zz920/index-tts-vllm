@@ -24,7 +24,7 @@ tts = None
 async def lifespan(app: FastAPI):
     global tts
     cfg_path = os.path.join(args.model_dir, "config.yaml")
-    tts = IndexTTS(model_dir=args.model_dir, cfg_path=cfg_path)
+    tts = IndexTTS(model_dir=args.model_dir, cfg_path=cfg_path, gpu_memory_utilization=args.gpu_memory_utilization)
 
     current_file_path = os.path.abspath(__file__)
     cur_dir = os.path.dirname(current_file_path)
@@ -106,6 +106,7 @@ if __name__ == "__main__":
     parser.add_argument("--host", type=str, default="0.0.0.0")
     parser.add_argument("--port", type=int, default=11996)
     parser.add_argument("--model_dir", type=str, default="/path/to/IndexTeam/Index-TTS")
+    parser.add_argument("--gpu_memory_utilization", type=float, default=0.25)
     args = parser.parse_args()
 
     uvicorn.run(app=app, host=args.host, port=args.port)

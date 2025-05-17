@@ -19,8 +19,10 @@ from tools.i18n.i18n import I18nAuto
 i18n = I18nAuto(language="zh_CN")
 
 model_dir = "/path/to/IndexTeam/Index-TTS"
+gpu_memory_utilization = 0.25
+
 cfg_path = os.path.join(model_dir, "config.yaml")
-tts = IndexTTS(model_dir=model_dir, cfg_path=cfg_path)
+tts = IndexTTS(model_dir=model_dir, cfg_path=cfg_path, gpu_memory_utilization=gpu_memory_utilization)
 
 
 async def gen_single(prompts, text, progress=gr.Progress()):

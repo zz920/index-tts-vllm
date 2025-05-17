@@ -44,11 +44,12 @@ pip install -r requirements.txt
 
 ### 5. 下载模型权重
 
-此为官方权重文件，下载到本地任意路径即可
+此为官方权重文件，下载到本地任意路径即可，支持 IndexTTS-1.5 的权重
 
 | **HuggingFace**                                          | **ModelScope** |
 |----------------------------------------------------------|----------------------------------------------------------|
-| [😁IndexTTS](https://huggingface.co/IndexTeam/Index-TTS) | [IndexTTS](https://modelscope.cn/models/IndexTeam/Index-TTS) |
+| [IndexTTS](https://huggingface.co/IndexTeam/Index-TTS) | [IndexTTS](https://modelscope.cn/models/IndexTeam/Index-TTS) |
+| [😁IndexTTS-1.5](https://huggingface.co/IndexTeam/IndexTTS-1.5) | [IndexTTS-1.5](https://modelscope.cn/models/IndexTeam/IndexTTS-1.5) |
 
 ### 6. 模型权重转换
 将 `convert_hf_format.sh` 中的 `MODEL_DIR` 修改为模型权重下载路径，然后运行：
@@ -79,6 +80,7 @@ python api_server.py --model_dir /your/path/to/Index-TTS --port 11996
 - `--model_dir`: 模型权重下载路径
 - `--host`: 服务ip地址
 - `--port`: 服务端口
+- `--gpu_memory_utilization`: vllm 显存占用率，默认设置为 `0.25`
 
 ### 请求示例
 ```python
