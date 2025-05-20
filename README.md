@@ -14,6 +14,18 @@
 ## 新特性
 - 支持多角色音频混合：可以传入多个参考音频，TTS 输出的角色声线为多个参考音频的混合版本（输入多个参考音频会导致输出的角色声线不稳定，可以抽卡抽到满意的声线再作为参考音频）
 
+## 性能
+Word Error Rate (WER) Results for IndexTTS and Baseline Models on the [**seed-test**](https://github.com/BytedanceSpeech/seed-tts-eval)
+
+| model                   | zh    | en    |
+| ----------------------- | ----- | ----- |
+| Human                   | 1.254 | 2.143 |
+| index-tts (num_beams=3) | 1.005 | 1.943 |
+| index-tts (num_beams=1) | 1.107 | 2.032 |
+| index-tts-vllm      | 1.12  | 1.987 |
+
+基本保持了原项目的性能
+
 ## 使用步骤
 
 ### 1. git 本项目
