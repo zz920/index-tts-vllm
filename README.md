@@ -42,10 +42,11 @@ conda activate index-tts-vllm
 ```
 
 
-### 3. 安装 pytorch 2.5.1（对应 vllm 0.7.3）
-```bash
-conda install pytorch==2.5.1 torchvision==0.20.1 torchaudio==2.5.1 pytorch-cuda=12.1 -c pytorch -c nvidia
-```
+### 3. 安装 pytorch
+
+优先建议安装 pytorch 2.7.0（对应 vllm 0.9.0），具体安装指令请参考：[pytorch 官网](https://pytorch.org/get-started/locally/)
+
+若显卡不支持，请安装 pytorch 2.5.1（对应 vllm 0.7.3），并将 [requirements.txt](requirements.txt) 中 `vllm==0.9.0` 修改为 `vllm==0.7.3`
 
 
 ### 4. 安装依赖
@@ -64,7 +65,7 @@ pip install -r requirements.txt
 | [😁IndexTTS-1.5](https://huggingface.co/IndexTeam/IndexTTS-1.5) | [IndexTTS-1.5](https://modelscope.cn/models/IndexTeam/IndexTTS-1.5) |
 
 ### 6. 模型权重转换
-将 `convert_hf_format.sh` 中的 `MODEL_DIR` 修改为模型权重下载路径，然后运行：
+将 [`convert_hf_format.sh`](convert_hf_format.sh) 中的 `MODEL_DIR` 修改为模型权重下载路径，然后运行：
 
 ```bash
 bash convert_hf_format.sh
@@ -73,20 +74,24 @@ bash convert_hf_format.sh
 此操作会将官方的模型权重转换为 transformers 库兼容的版本，保存在模型权重路径下的 `vllm` 文件夹中，方便后续 vllm 库加载模型权重
 
 ### 7. webui 启动！
-将 `webui.py` 中的 `model_dir` 修改为模型权重下载路径，然后运行：
+将 [`webui.py`](webui.py) 中的 `model_dir` 修改为模型权重下载路径，然后运行：
 
 ```bash
-python webui.py
+VLLM_USE_V1=0 python webui.py
 ```
 第一次启动可能会久一些，因为要对 bigvgan 进行 cuda 核编译
+
+注：一定要带上 `VLLM_USE_V1=0` ，因为本项目没有对 vllm 的 v1 版本做兼容
 
 
 ## API
 使用 fastapi 封装了 api 接口，启动示例如下：
 
 ```bash
-python api_server.py --model_dir /your/path/to/Index-TTS --port 11996
+VLLM_USE_V1=0 python api_server.py --model_dir /your/path/to/Index-TTS --port 11996
 ```
+
+注：一定要带上 `VLLM_USE_V1=0` ，因为本项目没有对 vllm 的 v1 版本做兼容
 
 ### 启动参数
 - `--model_dir`: 模型权重下载路径
@@ -113,4 +118,4 @@ with open("output.wav", "wb") as f:
 ```
 
 ## 并发测试
-参考 `simple_test.py`，需先启动 API 服务
+参考 [`simple_test.py`](simple_test.py)，需先启动 API 服务

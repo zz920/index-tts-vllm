@@ -1,9 +1,16 @@
 import time
 from typing import List, Optional, Tuple, Union
 
+from packaging import version
+import importlib
+vllm_version = version.parse(importlib.import_module("vllm").__version__)
+
 # 在 vllm 中注册自定义的 GPT2TTSModel
 from vllm import ModelRegistry
-from indextts.gpt.index_tts_gpt2 import GPT2TTSModel
+if vllm_version > version.parse("0.7.3"):
+    from indextts.gpt.index_tts_gpt2_new import GPT2TTSModel
+else:
+    from indextts.gpt.index_tts_gpt2 import GPT2TTSModel
 ModelRegistry.register_model("GPT2InferenceModel", GPT2TTSModel)
 print("✅ Registry GPT2TTSModel to vllm")
 
