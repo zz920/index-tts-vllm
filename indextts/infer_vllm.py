@@ -340,6 +340,7 @@ class IndexTTS:
         wav_data = trim_and_pad_silence(wav_data)
         return (sampling_rate, wav_data)
     
+    @torch.no_grad()
     def registry_speaker(self, speaker: str, audio_paths: List[str]):
         auto_conditioning = []
         for ap_ in audio_paths:
