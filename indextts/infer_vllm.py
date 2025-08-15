@@ -273,7 +273,7 @@ class IndexTTS:
     async def infer_with_ref_audio_embed(self, speaker: str, text):
         start_time = time.perf_counter()
         text = text.replace("嗯", "EN4")
-        text = text.replace("嘿", "HEI1")
+        text = text.replace("嘿", "HEI4")
         text = text.replace("嗨", "HAI4")
         text = text.replace("哈哈", "HA1HA1")
         sampling_rate = 24000
@@ -367,4 +367,40 @@ class IndexTTS:
             "auto_conditioning": auto_conditioning,
             "speech_conditioning_latent": speech_conditioning_latent
         }
+
+        print(f"Speaker: {speaker} registered")
+
+    def unload_speaker(self, speaker: str):
+        if speaker in self.speaker_dict:
+            del self.speaker_dict[speaker]
+            print(f"Speaker: {speaker} unloaded")
+            torch.cuda.empty_cache()
+
+    def pickle_speaker_data(self, speaker: str):
+        import pickle
+        speaker_data = self.speaker_dict[speaker]
+
+        auto_conditioning = [ac.cpu().numpy() for ac in speaker_data["auto_conditioning"]]
+        speech_conditioning_latent = speaker_data["speech_conditioning_latent"].cpu().numpy()
+
+        data = {
+            "auto_conditioning": auto_conditioning,
+            "speech_conditioning_latent": speech_conditioning_latent,
+        }
+
+        return pickle.dumps(data)
+    
+    def load_speaker_from_data(self, speaker, data):
+        import pickle
+
+        speaker_data = pickle.loads(data)
+        # 将numpy数组转换回torch tensor
+        auto_conditioning = [torch.from_numpy(ac).to(self.device) for ac in speaker_data["auto_conditioning"]]
+        speech_conditioning_latent = torch.from_numpy(speaker_data["speech_conditioning_latent"]).to(self.device)
+
+        self.speaker_dict[speaker] = {
+            "auto_conditioning": auto_conditioning,
+            "speech_conditioning_latent": speech_conditioning_latent
+        }
+
         print(f"Speaker: {speaker} registered")
