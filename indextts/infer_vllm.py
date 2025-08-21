@@ -272,10 +272,10 @@ class IndexTTS:
         
     async def infer_with_ref_audio_embed(self, speaker: str, text):
         start_time = time.perf_counter()
-        text = text.replace("嗯", "EN4")
-        text = text.replace("嘿", "HEI4")
-        text = text.replace("嗨", "HAI4")
-        text = text.replace("哈哈", "HA1HA1")
+        # text = text.replace("嗯", "EN4")
+        # text = text.replace("嘿", "HEI4")
+        # text = text.replace("嗨", "HAI4")
+        # text = text.replace("哈哈", "HA1HA1")
         sampling_rate = 24000
 
         auto_conditioning = self.speaker_dict[speaker]["auto_conditioning"]
